@@ -1,0 +1,16 @@
+"# Gradle
+.gradle/
+build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Loom runtime (once you add dev run configs)
+run/
+" | Out-File -FilePath .gitignore -Encoding utf8

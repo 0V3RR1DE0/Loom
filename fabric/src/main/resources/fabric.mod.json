@@ -1,0 +1,38 @@
+{
+  "schemaVersion": 1,
+  "id": "loom",
+  "version": "${version}",
+  "name": "Loom",
+  "description": "This is an example description! Tell everyone what your mod is about!",
+  "authors": [
+    "0v3rr1de0"
+  ],
+  "contact": {
+    "homepage": "https://fabricmc.net/",
+    "sources": "https://github.com/FabricMC/fabric-example-mod"
+  },
+  "license": "CC0-1.0",
+  "icon": "assets/loom/icon.png",
+  "environment": "*",
+  "entrypoints": {
+    "main": [
+      "dev.loom.fabric.ExampleModFabric"
+    ],
+    "client": [
+      "dev.loom.fabric.client.ExampleModFabricClient"
+    ]
+  },
+  "mixins": [
+    "loom.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "minecraft": "~1.21.10",
+    "java": ">=21",
+    "architectury": ">=18.0.6",
+    "fabric-api": "*"
+  },
+  "suggests": {
+    "another-mod": "*"
+  }
+}
