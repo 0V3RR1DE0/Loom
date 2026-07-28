@@ -1,4 +1,4 @@
-"# Gradle
+# Gradle
 .gradle/
 build/
 
@@ -11,6 +11,5 @@ build/
 .DS_Store
 Thumbs.db
 
-# Loom runtime (once you add dev run configs)
+# Loom runtime
 run/
-" | Out-File -FilePath .gitignore -Encoding utf8
