@@ -16,10 +16,10 @@
   "environment": "*",
   "entrypoints": {
     "main": [
-      "dev.loom.fabric.ExampleModFabric"
+      "dev.loom.fabric.LoomFabric"
     ],
     "client": [
-      "dev.loom.fabric.client.ExampleModFabricClient"
+      "dev.loom.fabric.client.LoomFabricClient"
     ]
   },
   "mixins": [

@@ -30,7 +30,7 @@ side = "BOTH"
 [[dependencies.loom]]
 modId = "architectury"
 type = "required"
-versionRange = "[18.0.6,)"
+versionRange = "[18.0.8,)"
 ordering = "AFTER"
 side = "BOTH"
 
