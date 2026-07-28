@@ -1,7 +1,7 @@
 modLoader = "javafml"
 loaderVersion = "[10,)"
-#issueTrackerURL = ""
-license = "Insert License Here"
+issueTrackerURL = "https://github.com/0V3RR1DE0/Loom/issues"
+license = "GPL-3.0-only"
 
 [[mods]]
 modId = "loom"
@@ -9,7 +9,7 @@ version = "${version}"
 displayName = "Loom"
 authors = "0v3rr1de0"
 description = '''
-This is an example description! Tell everyone what your mod is about!
+A Skript-inspired scripting mod for Fabric and NeoForge Servers and Clients
 '''
 #logoFile = ""
 
