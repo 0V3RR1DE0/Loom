@@ -2,7 +2,7 @@ package dev.loom.fabric;
 
 import net.fabricmc.api.ModInitializer;
 
-import dev.loom.ExampleMod;
+import dev.loom.LoomCore;
 
 public final class ExampleModFabric implements ModInitializer {
     @Override
@@ -12,6 +12,6 @@ public final class ExampleModFabric implements ModInitializer {
         // Proceed with mild caution.
 
         // Run our common setup.
-        ExampleMod.init();
+        LoomCore.init();
     }
 }

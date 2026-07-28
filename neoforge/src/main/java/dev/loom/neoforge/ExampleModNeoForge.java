@@ -2,12 +2,12 @@ package dev.loom.neoforge;
 
 import net.neoforged.fml.common.Mod;
 
-import dev.loom.ExampleMod;
+import dev.loom.LoomCore;
 
-@Mod(ExampleMod.MOD_ID)
+@Mod(LoomCore.MOD_ID)
 public final class ExampleModNeoForge {
     public ExampleModNeoForge() {
         // Run our common setup.
-        ExampleMod.init();
+        LoomCore.init();
     }
 }
