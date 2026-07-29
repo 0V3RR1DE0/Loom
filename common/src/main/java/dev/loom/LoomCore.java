@@ -1,6 +1,7 @@
 package dev.loom;
 
 import dev.architectury.event.events.common.PlayerEvent;
+import dev.loom.script.ScriptManager;
 import dev.loom.util.LoomConfigInitializer;  // Import the utility class
 import net.minecraft.network.chat.Component;
 import static dev.loom.util.Log.*;
@@ -18,6 +19,8 @@ public final class LoomCore {
 
         // Initialize config structure using the utility class
         LoomConfigInitializer.initialize();
+        ScriptManager.loadAll();
+        info("Scripts & Configs loaded.");
 
         // Register event listeners
         registerEventListeners();
