@@ -6,8 +6,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.Map;
-import java.util.HashMap;
+import java.util.*;
 
 import static dev.loom.util.Log.*;
 
@@ -15,31 +14,50 @@ public class ScriptManager {
     private static final Map<String, LoadedScript> scripts = new HashMap<>();
     private static final Map<String, LoadedScript> disabledScripts = new HashMap<>();
 
+    private static final String SCRIPT_EXT = ".ls";
+    private static final String DISABLED_EXT = ".disabled";
+
+    private static Path getScriptsDir() {
+        return Platform.getConfigFolder().resolve("loom").resolve("scripts");
+    }
+
     public static int loadAll() {
         scripts.clear();
-        Path scriptsDir = Platform.getConfigFolder().resolve("loom").resolve("scripts");
+        disabledScripts.clear();
+        Path scriptsDir = getScriptsDir();
 
         try {
             Files.walk(scriptsDir)
-                    .filter(path -> path.toString().endsWith(".ls"))
+                    .filter(Files::isRegularFile)
                     .forEach(path -> {
                         String fileName = path.getFileName().toString();
-                        String scriptName = fileName.substring(0, fileName.length() - 3); // strip ".ls"
-                        scripts.put(scriptName, new LoadedScript(scriptName, path));
+                        String key = scriptsDir.relativize(path).toString().replace('\\', '/');
+
+                        if (fileName.endsWith(SCRIPT_EXT)) {
+                            String scriptName = fileName.substring(0, fileName.length() - SCRIPT_EXT.length());
+                            key = key.substring(0, key.length() - SCRIPT_EXT.length());
+
+                            scripts.put(key, new LoadedScript(scriptName, path));
+                        } else if (fileName.endsWith(DISABLED_EXT)) {
+                            String scriptName = fileName.substring(0, fileName.length() - SCRIPT_EXT.length() - DISABLED_EXT.length());
+                            key = key.substring(0, key.length() - SCRIPT_EXT.length() - DISABLED_EXT.length());
+
+                            disabledScripts.put(key, new LoadedScript(scriptName, path));
+                        }
                     });
         } catch (IOException e) {
             error("Failed to load scripts from {}", scriptsDir, e);
         }
-        info("Loaded {} script(s).", scripts.size());
+        info("Loaded {} enabled script(s), {} disabled script(s).", scripts.size(), disabledScripts.size());
         return scripts.size();
     }
 
     public static boolean createScript(String name) throws IOException {
-        Path targetFile = Platform.getConfigFolder().resolve("loom").resolve("scripts").resolve(name + ".ls");
+        Path scripts = getScriptsDir();
+        Path targetFile = scripts.resolve(name + SCRIPT_EXT);
 
         // Path traversal prevention
-        Path scripts = Platform.getConfigFolder().resolve("loom").resolve("scripts");
-        Path target = scripts.resolve(name + ".ls").normalize();
+        Path target = targetFile.normalize();
 
         if (!target.startsWith(scripts)) {
             throw new IllegalArgumentException("Invalid script path.");
@@ -56,14 +74,17 @@ public class ScriptManager {
     }
 
     public static boolean reload(String name) {
-        Path scriptsDir = Platform.getConfigFolder().resolve("loom").resolve("scripts");
-        Path targetFile = scriptsDir.resolve(name + ".ls");
+        Path scriptsDir = getScriptsDir();
+        Path targetFile = scriptsDir.resolve(name + SCRIPT_EXT).normalize();
 
-        if (!Files.exists(targetFile)) {
+        if (!targetFile.startsWith(scriptsDir) || !Files.exists(targetFile)) {
             return false;
         }
 
-        scripts.put(name, new LoadedScript(name, targetFile));
+        String fileName = targetFile.getFileName().toString();
+        String scriptName = fileName.substring(0, fileName.length() - SCRIPT_EXT.length());
+
+        scripts.put(name, new LoadedScript(scriptName, targetFile));
 
         return true;
     }
@@ -80,7 +101,10 @@ public class ScriptManager {
         try {
             Files.move(currentPath, newPath, StandardCopyOption.ATOMIC_MOVE);
             scripts.remove(name);
-            disabledScripts.put(name, new LoadedScript(name, newPath));
+            String fileName = newPath.getFileName().toString();
+            String scriptName = fileName.substring(0, fileName.length() - DISABLED_EXT.length());
+
+            disabledScripts.put(name, new LoadedScript(scriptName, newPath));
         } catch (IOException e) {
             error("Failed to disable script '{}': {}", name, e.getMessage());
             return false;
@@ -97,12 +121,15 @@ public class ScriptManager {
 
         Path currentPath = disabledScript.getPath();
         String currentPathText = currentPath.toString();
-        Path newPath = Path.of(currentPathText.substring(0, currentPathText.length() - 9));
+        Path newPath = Path.of(currentPathText.substring(0, currentPathText.length() - DISABLED_EXT.length()));
 
         try {
             Files.move(currentPath, newPath, StandardCopyOption.ATOMIC_MOVE);
             disabledScripts.remove(name);
-            scripts.put(name, new LoadedScript(name, newPath));
+            String fileName = newPath.getFileName().toString();
+            String scriptName = fileName.substring(0, fileName.length() - SCRIPT_EXT.length());
+
+            scripts.put(name, new LoadedScript(scriptName, newPath));
         } catch (IOException e) {
             error("Failed to enable script '{}': {}", name, e.getMessage());
             return false;
@@ -110,4 +137,28 @@ public class ScriptManager {
 
         return true;
     }
+
+    public static List<ScriptEntry> getScripts() {
+        List<ScriptEntry> list = new ArrayList<>(scripts.size() + disabledScripts.size());
+
+        scripts.forEach((path, script) ->
+                list.add(new ScriptEntry(path, true, script)));
+
+        disabledScripts.forEach((path, script) ->
+                list.add(new ScriptEntry(path, false, script)));
+
+        list.sort(Comparator.comparing(ScriptEntry::path));
+
+        return list;
+    }
+
+    public static Set<String> getScriptNames() {
+        return scripts.keySet();
+    }
+
+    public static Set<String> getDisabledScriptNames() {
+        return disabledScripts.keySet();
+    }
+
+    public record ScriptEntry(String path, boolean enabled, LoadedScript script) {}
 }

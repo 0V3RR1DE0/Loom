@@ -2,20 +2,28 @@ package dev.loom;
 
 import com.mojang.brigadier.Command;
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
 import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.loom.script.ScriptManager;
+import dev.loom.util.ScriptSuggestions;
+import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandBuildContext;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.MutableComponent;
+
 import static dev.loom.util.Log.*;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.List;
 
 public class LoomCommand {
+
+    private static final int SCRIPTS_PER_PAGE = 12;
 
     public static void register() {
         CommandRegistrationEvent.EVENT.register((dispatcher, registry, selection) -> {
@@ -27,21 +35,39 @@ public class LoomCommand {
                             .executes(LoomCommand::help)
                     )
                     .then(Commands.literal("list")
-                            .executes(LoomCommand::list)
+                            .executes(ctx -> list(ctx, 1, null))
+                            .then(Commands.literal("enabled")
+                                    .executes(ctx -> list(ctx, 1, true))
+                                    .then(Commands.argument("page", IntegerArgumentType.integer(1))
+                                            .executes(ctx -> list(ctx, IntegerArgumentType.getInteger(ctx, "page"), true))
+                                    )
+                            )
+                            .then(Commands.literal("disabled")
+                                    .executes(ctx -> list(ctx, 1, false))
+                                    .then(Commands.argument("page", IntegerArgumentType.integer(1))
+                                            .executes(ctx -> list(ctx, IntegerArgumentType.getInteger(ctx, "page"), false))
+                                    )
+                            )
+                            .then(Commands.argument("page", IntegerArgumentType.integer(1))
+                                    .executes(ctx -> list(ctx, IntegerArgumentType.getInteger(ctx, "page"), null))
+                            )
                     )
                     .then(Commands.literal("reload")
                             .executes(LoomCommand::reload)
                             .then(Commands.argument("scriptname", StringArgumentType.greedyString())
+                                    .suggests(ScriptSuggestions.ENABLED)
                                     .executes(LoomCommand::reloadSpecific)
                             )
                     )
                     .then(Commands.literal("enable")
                             .then(Commands.argument("scriptname", StringArgumentType.greedyString())
+                                    .suggests(ScriptSuggestions.DISABLED)
                                     .executes(LoomCommand::enableSpecific)
                             )
                     )
                     .then(Commands.literal("disable")
                             .then(Commands.argument("scriptname", StringArgumentType.greedyString())
+                                    .suggests(ScriptSuggestions.ENABLED)
                                     .executes(LoomCommand::disableSpecific)
                             )
                     )
@@ -52,11 +78,13 @@ public class LoomCommand {
                     )
                     .then(Commands.literal("remove")
                             .then(Commands.argument("scriptname", StringArgumentType.greedyString())
+                                    .suggests(ScriptSuggestions.ALL)
                                     .executes(LoomCommand::remove)
                             )
                     )
                     .then(Commands.literal("rename")
                             .then(Commands.argument("scriptname", StringArgumentType.greedyString())
+                                    .suggests(ScriptSuggestions.ALL)
                                     .then(Commands.argument("newname", StringArgumentType.greedyString())
                                             .executes(LoomCommand::rename)
                                     )
@@ -114,6 +142,37 @@ public class LoomCommand {
         return 1;
     }
 
+    private static int list(CommandContext<CommandSourceStack> context, int page, Boolean enabledFilter) {
+        List<ScriptManager.ScriptEntry> scripts = ScriptManager.getScripts();
+
+        if (enabledFilter != null) {
+            scripts.removeIf(entry -> entry.enabled() != enabledFilter);
+        }
+
+        int totalScripts = scripts.size();
+        int totalPages = Math.max(1, (totalScripts + SCRIPTS_PER_PAGE - 1) / SCRIPTS_PER_PAGE);
+
+        final int currentPage = Math.max(1, Math.min(page, totalPages));
+
+        int start = (currentPage - 1) * SCRIPTS_PER_PAGE;
+        int end = Math.min(start + SCRIPTS_PER_PAGE, totalScripts);
+
+        context.getSource().sendSuccess(() -> Component.literal("=== Loom Scripts List ===").withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD), false );
+
+        for (int i = start; i < end; i++) {
+            ScriptManager.ScriptEntry entry = scripts.get(i);
+            MutableComponent line = Component.literal("● " + entry.path()).withStyle(entry.enabled() ? ChatFormatting.WHITE : ChatFormatting.GRAY);
+
+            context.getSource().sendSuccess(() -> line, false);
+        }
+        context.getSource().sendSuccess(() -> Component.literal("◀ Previous ").withStyle(ChatFormatting.DARK_GRAY)
+                                .append(Component.literal("Page " + currentPage + "/" + totalPages)
+                                        .withStyle(ChatFormatting.GRAY))
+                                .append(Component.literal(" Next ▶")
+                                        .withStyle(ChatFormatting.DARK_GRAY)), false);
+        return 1;
+    }
+
     private static int createScript(CommandContext<CommandSourceStack> context) {
         String scriptName = StringArgumentType.getString(context, "scriptname");
 
@@ -150,24 +209,38 @@ public class LoomCommand {
     }
 
     private static int help(CommandContext<CommandSourceStack> context) {
-        Component message = Component.literal("=== Help Menu ===\n")
-                .append(Component.literal("help -- Brings this help menu\n"))
-                .append(Component.literal("list -- Lists all scripts\n"))
-                .append(Component.literal("reload -- Reloads all scripts, optionally use reload <script name>\n"))
-                .append(Component.literal("new <script name> -- Creates a new script file\n"))
-                .append(Component.literal("remove <script name> -- Deletes a script\n"))
-                .append(Component.literal("rename <script name> <new script name> -- Renames a script\n"))
-                .append(Component.literal("enable <script name> -- Enables a script\n"))
-                .append(Component.literal("disable <script name> -- Disables a script\n"))
-                .append(Component.literal("confirm -- Confirms an action"));
+        context.getSource().sendSuccess(() -> Component.literal("=== Loom Commands ===")
+                        .withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD), false);
 
-        context.getSource().sendSuccess(() -> message, false);
+        String[][] entries = {
+                {"help", "Shows this help menu"},
+                {"list", "Lists all loaded scripts"},
+                {"reload", "Reloads all scripts"},
+                {"reload <name>", "Reloads a single script"},
+                {"new <name>", "Creates a new script file"},
+                {"remove <name>", "Deletes a script"},
+                {"rename <name> <new name>", "Renames a script"},
+                {"enable <name>", "Enables a disabled script"},
+                {"disable <name>", "Disables an active script"},
+                {"confirm", "Confirms a pending destructive action"}
+        };
+
+        for (String[] entry : entries) {
+            String usage = entry[0];
+            String description = entry[1];
+
+            MutableComponent line = Component.literal("/loom " + usage)
+                    .withStyle(ChatFormatting.GRAY)
+                    .append(Component.literal(" - ")
+                            .withStyle(ChatFormatting.DARK_GRAY))
+                    .append(Component.literal(description)
+                            .withStyle(ChatFormatting.WHITE));
+
+            context.getSource().sendSuccess(() -> line, false);
+        }
+
         return 1;
     }
-
-    private static int list(CommandContext<CommandSourceStack> context) {
-        return 1;
-    };
 
     private static int reload(CommandContext<CommandSourceStack> context) {
         int count = ScriptManager.loadAll();
