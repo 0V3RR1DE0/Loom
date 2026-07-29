@@ -76,23 +76,41 @@ public class LoomCommand {
         });
     }
 
-    private static int enableSpecific(CommandContext<CommandSourceStack> commandSourceStackCommandContext) {
+    private static int enableSpecific(CommandContext<CommandSourceStack> context) {
+        String scriptName = StringArgumentType.getString(context, "scriptname");
+
+        boolean success = ScriptManager.enable(scriptName);
+        if (success) {
+            context.getSource().sendSuccess(() -> Component.literal("Enabled script: " + scriptName), false);
+        } else {
+            context.getSource().sendFailure(Component.literal("No script named '" + scriptName + "' found."));
+        }
+
         return 1;
     }
 
-    private static int disableSpecific(CommandContext<CommandSourceStack> commandSourceStackCommandContext) {
+    private static int disableSpecific(CommandContext<CommandSourceStack> context) {
+        String scriptName = StringArgumentType.getString(context, "scriptname");
+
+        boolean success = ScriptManager.disable(scriptName);
+        if (success) {
+            context.getSource().sendSuccess(() -> Component.literal("Disabled script: " + scriptName), false);
+        } else {
+            context.getSource().sendFailure(Component.literal("No script named '" + scriptName + "' found."));
+        }
+
         return 1;
     }
 
-    private static int rename(CommandContext<CommandSourceStack> commandSourceStackCommandContext) {
+    private static int rename(CommandContext<CommandSourceStack> context) {
         return 1;
     }
 
-    private static int confirm(CommandContext<CommandSourceStack> commandSourceStackCommandContext) {
+    private static int confirm(CommandContext<CommandSourceStack> context) {
         return 1;
     }
 
-    private static int remove(CommandContext<CommandSourceStack> commandSourceStackCommandContext) {
+    private static int remove(CommandContext<CommandSourceStack> context) {
         return 1;
     }
 

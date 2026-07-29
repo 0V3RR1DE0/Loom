@@ -5,6 +5,7 @@ import dev.architectury.platform.Platform;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.HashMap;
 
@@ -12,6 +13,7 @@ import static dev.loom.util.Log.*;
 
 public class ScriptManager {
     private static final Map<String, LoadedScript> scripts = new HashMap<>();
+    private static final Map<String, LoadedScript> disabledScripts = new HashMap<>();
 
     public static int loadAll() {
         scripts.clear();
@@ -62,6 +64,49 @@ public class ScriptManager {
         }
 
         scripts.put(name, new LoadedScript(name, targetFile));
+
+        return true;
+    }
+
+    public static boolean disable(String name) {
+        LoadedScript script = scripts.get(name);
+        if (script == null) {
+            return false;
+        }
+
+        Path currentPath = script.getPath();
+        Path newPath = Path.of(currentPath.toString() + ".disabled");
+
+        try {
+            Files.move(currentPath, newPath, StandardCopyOption.ATOMIC_MOVE);
+            scripts.remove(name);
+            disabledScripts.put(name, new LoadedScript(name, newPath));
+        } catch (IOException e) {
+            error("Failed to disable script '{}': {}", name, e.getMessage());
+            return false;
+        }
+
+        return true;
+    }
+
+    public static boolean enable(String name) {
+        LoadedScript disabledScript = disabledScripts.get(name);
+        if (disabledScript == null) {
+            return false;
+        }
+
+        Path currentPath = disabledScript.getPath();
+        String currentPathText = currentPath.toString();
+        Path newPath = Path.of(currentPathText.substring(0, currentPathText.length() - 9));
+
+        try {
+            Files.move(currentPath, newPath, StandardCopyOption.ATOMIC_MOVE);
+            disabledScripts.remove(name);
+            scripts.put(name, new LoadedScript(name, newPath));
+        } catch (IOException e) {
+            error("Failed to enable script '{}': {}", name, e.getMessage());
+            return false;
+        }
 
         return true;
     }
