@@ -98,6 +98,12 @@ public class LoomCommand {
 
     private static int createScript(CommandContext<CommandSourceStack> context) {
         String scriptName = StringArgumentType.getString(context, "scriptname");
+
+        if (scriptName.contains(" ")) {
+            context.getSource().sendFailure(Component.literal("Script names cannot contain spaces."));
+            return 1;
+        }
+
         try {
             boolean success = ScriptManager.createScript(scriptName);
             if (success) {
@@ -146,12 +152,26 @@ public class LoomCommand {
     };
 
     private static int reload(CommandContext<CommandSourceStack> context) {
+        int count = ScriptManager.loadAll();
+        context.getSource().sendSuccess(() -> Component.literal("Reloaded " + count + " script(s)."), false);
         return 1;
     };
 
     private static int reloadSpecific(CommandContext<CommandSourceStack> context) {
         String scriptName = StringArgumentType.getString(context, "scriptname");
-        context.getSource().sendSuccess(() -> Component.literal("Reloading script: " + scriptName), false);
+
+        if (scriptName.contains(" ")) {
+            context.getSource().sendFailure(Component.literal("Script names cannot contain spaces."));
+            return 1;
+        }
+
+        boolean success = ScriptManager.reload(scriptName);
+        if (success) {
+            context.getSource().sendSuccess(() -> Component.literal("Reloaded script: " + scriptName), false);
+        } else {
+            context.getSource().sendFailure(Component.literal("No script named '" + scriptName + "' found."));
+        }
+
         return 1;
     }
 }

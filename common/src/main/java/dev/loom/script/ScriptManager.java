@@ -13,7 +13,7 @@ import static dev.loom.util.Log.*;
 public class ScriptManager {
     private static final Map<String, LoadedScript> scripts = new HashMap<>();
 
-    public static void loadAll() {
+    public static int loadAll() {
         scripts.clear();
         Path scriptsDir = Platform.getConfigFolder().resolve("loom").resolve("scripts");
 
@@ -29,6 +29,7 @@ public class ScriptManager {
             error("Failed to load scripts from {}", scriptsDir, e);
         }
         info("Loaded {} script(s).", scripts.size());
+        return scripts.size();
     }
 
     public static boolean createScript(String name) throws IOException {
@@ -48,6 +49,19 @@ public class ScriptManager {
 
         Files.createDirectories(targetFile.getParent());
         Files.createFile(targetFile);
+
+        return true;
+    }
+
+    public static boolean reload(String name) {
+        Path scriptsDir = Platform.getConfigFolder().resolve("loom").resolve("scripts");
+        Path targetFile = scriptsDir.resolve(name + ".ls");
+
+        if (!Files.exists(targetFile)) {
+            return false;
+        }
+
+        scripts.put(name, new LoadedScript(name, targetFile));
 
         return true;
     }
