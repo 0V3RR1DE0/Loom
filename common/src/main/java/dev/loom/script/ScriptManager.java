@@ -53,23 +53,19 @@ public class ScriptManager {
     }
 
     public static boolean createScript(String name) throws IOException {
-        Path scripts = getScriptsDir();
-        Path targetFile = scripts.resolve(name + SCRIPT_EXT);
+        Path scriptsDir = getScriptsDir();
+        Path targetFile = scriptsDir.resolve(name + SCRIPT_EXT);
 
-        // Path traversal prevention
         Path target = targetFile.normalize();
-
-        if (!target.startsWith(scripts)) {
+        if (!target.startsWith(scriptsDir)) {
             throw new IllegalArgumentException("Invalid script path.");
         }
-
         if (Files.exists(targetFile)) {
             return false;
         }
-
         Files.createDirectories(targetFile.getParent());
         Files.createFile(targetFile);
-
+        scripts.put(name, new LoadedScript(name, targetFile));
         return true;
     }
 
@@ -135,6 +131,71 @@ public class ScriptManager {
             return false;
         }
 
+        return true;
+    }
+
+    public static boolean rename(String name, String newName) {
+        if (!scripts.containsKey(name) && !disabledScripts.containsKey(name)) {
+            return false;
+        }
+        if (scripts.containsKey(newName) || disabledScripts.containsKey(newName)) {
+            return false;
+        }
+
+        LoadedScript script = scripts.get(name);
+        if (script != null) {
+            Path currentPath = script.getPath();
+            Path newPath = currentPath.getParent().resolve(newName + SCRIPT_EXT);
+            try {
+                Files.move(currentPath, newPath, StandardCopyOption.ATOMIC_MOVE);
+                scripts.remove(name);
+                scripts.put(newName, new LoadedScript(newName, newPath));
+            } catch (IOException e) {
+                error("Failed to rename script '{}': {}", name, e.getMessage());
+                return false;
+            }
+        } else {
+            LoadedScript disabledScript = disabledScripts.get(name);
+            Path currentPath = disabledScript.getPath();
+            Path newPath = currentPath.getParent().resolve(newName + SCRIPT_EXT + DISABLED_EXT);
+            try {
+                Files.move(currentPath, newPath, StandardCopyOption.ATOMIC_MOVE);
+                disabledScripts.remove(name);
+                disabledScripts.put(newName, new LoadedScript(newName, newPath));
+            } catch (IOException e) {
+                error("Failed to rename script '{}': {}", name, e.getMessage());
+                return false;
+            }
+        }
+        return true;
+    }
+
+    public static boolean remove(String name) {
+        LoadedScript script = scripts.get(name);
+        if (script != null) {
+            Path currentPath = script.getPath();
+            try {
+                Files.delete(currentPath);
+                scripts.remove(name);
+            } catch (IOException e) {
+                error("Failed to delete script '{}': {}", name, e.getMessage());
+                return false;
+            }
+        } else {
+            LoadedScript disabledScript = disabledScripts.get(name);
+            if (disabledScript != null) {
+                Path currentPath = disabledScript.getPath();
+                try {
+                    Files.delete(currentPath);
+                    disabledScripts.remove(name);
+                } catch (IOException e) {
+                    error("Failed to delete script '{}': {}", name, e.getMessage());
+                    return false;
+                }
+            } else {
+                return false;
+            }
+        }
         return true;
     }
 

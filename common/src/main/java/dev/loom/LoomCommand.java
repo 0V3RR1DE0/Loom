@@ -5,8 +5,10 @@ import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.context.CommandContext;
+import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import dev.architectury.event.events.common.CommandRegistrationEvent;
 import dev.loom.script.ScriptManager;
+import dev.loom.util.PendingConfirmation;
 import dev.loom.util.ScriptSuggestions;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandBuildContext;
@@ -20,6 +22,7 @@ import static dev.loom.util.Log.*;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.List;
+import java.util.UUID;
 
 public class LoomCommand {
 
@@ -82,11 +85,25 @@ public class LoomCommand {
                                     .executes(LoomCommand::remove)
                             )
                     )
-                    .then(Commands.literal("rename")
+                    .then(Commands.literal("forceremove")
                             .then(Commands.argument("scriptname", StringArgumentType.greedyString())
                                     .suggests(ScriptSuggestions.ALL)
-                                    .then(Commands.argument("newname", StringArgumentType.greedyString())
+                                    .executes(LoomCommand::removeForce)
+                            )
+                    )
+                    .then(Commands.literal("rename")
+                            .then(Commands.argument("newname", StringArgumentType.word())
+                                    .then(Commands.argument("scriptname", StringArgumentType.greedyString())
+                                            .suggests(ScriptSuggestions.ALL)
                                             .executes(LoomCommand::rename)
+                                    )
+                            )
+                    )
+                    .then(Commands.literal("forcerename")
+                            .then(Commands.argument("newname", StringArgumentType.word())
+                                    .then(Commands.argument("scriptname", StringArgumentType.greedyString())
+                                            .suggests(ScriptSuggestions.ALL)
+                                            .executes(LoomCommand::renameForce)
                                     )
                             )
                     )
@@ -131,14 +148,87 @@ public class LoomCommand {
     }
 
     private static int rename(CommandContext<CommandSourceStack> context) {
+        try {
+            UUID uuid = context.getSource().getPlayerOrException().getUUID();
+            String scriptName = StringArgumentType.getString(context, "scriptname");
+            String newName = StringArgumentType.getString(context, "newname");
+            if (scriptName.contains(" ")) {
+                context.getSource().sendFailure(Component.literal("Script names cannot contain spaces."));
+                return 1;
+            }
+            PendingConfirmation.request(uuid, () -> ScriptManager.rename(scriptName, newName), 15000, "Renamed " + scriptName + " to " + newName);
+            context.getSource().sendSuccess(() -> Component.literal("Run /loom confirm within 15 seconds to rename " + scriptName + " to " + newName), false);
+        } catch (CommandSyntaxException e) {
+            context.getSource().sendFailure(Component.literal("This command must be run by a player."));
+            return 1;
+        }
+        return 1;
+    }
+
+    private static int renameForce(CommandContext<CommandSourceStack> context) {
+        String scriptName = StringArgumentType.getString(context, "scriptname");
+        String newName = StringArgumentType.getString(context, "newname");
+        if (scriptName.contains(" ")) {
+            context.getSource().sendFailure(Component.literal("Script names cannot contain spaces."));
+            return 1;
+        }
+        boolean success = ScriptManager.rename(scriptName, newName);
+        if (success) {
+            context.getSource().sendSuccess(() -> Component.literal("Renamed script: " + scriptName + " to " + newName + " successfully"), false);
+        } else {
+            context.getSource().sendFailure(Component.literal("No script named '" + scriptName + "' found."));
+        }
         return 1;
     }
 
     private static int confirm(CommandContext<CommandSourceStack> context) {
+        try {
+            UUID uuid = context.getSource().getPlayerOrException().getUUID();
+            PendingConfirmation.ConfirmOutcome outcome = PendingConfirmation.confirm(uuid);
+            if (outcome.result() == null) {
+                outcome.action().run();
+                context.getSource().sendSuccess(() -> Component.literal(outcome.message() + " successfully"), false);
+            } else if (outcome.result() == PendingConfirmation.ConfirmResult.NOT_FOUND) {
+                context.getSource().sendFailure(Component.literal("The action was not found."));
+            } else if (outcome.result() == PendingConfirmation.ConfirmResult.EXPIRED) {
+                context.getSource().sendFailure(Component.literal("The action has expired."));
+            }
+        } catch (CommandSyntaxException e) {
+            context.getSource().sendFailure(Component.literal("This command must be run by a player."));
+            return 1;
+        }
         return 1;
     }
 
     private static int remove(CommandContext<CommandSourceStack> context) {
+        try {
+            UUID uuid = context.getSource().getPlayerOrException().getUUID();
+            String scriptName = StringArgumentType.getString(context, "scriptname");
+            if (scriptName.contains(" ")) {
+                context.getSource().sendFailure(Component.literal("Script names cannot contain spaces."));
+                return 1;
+            }
+            PendingConfirmation.request(uuid, () -> ScriptManager.remove(scriptName), 15000, "Removed script " + scriptName);
+            context.getSource().sendSuccess(() -> Component.literal("Run /loom confirm within 15 seconds to remove " + scriptName), false);
+        } catch (CommandSyntaxException e) {
+            context.getSource().sendFailure(Component.literal("This command must be run by a player."));
+            return 1;
+        }
+        return 1;
+    }
+
+    private static int removeForce(CommandContext<CommandSourceStack> context) {
+        String scriptName = StringArgumentType.getString(context, "scriptname");
+        if (scriptName.contains(" ")) {
+            context.getSource().sendFailure(Component.literal("Script names cannot contain spaces."));
+            return 1;
+        }
+        boolean success = ScriptManager.remove(scriptName);
+        if (success) {
+            context.getSource().sendSuccess(() -> Component.literal("Removed script: " + scriptName + " successfully"), false);
+        } else {
+            context.getSource().sendFailure(Component.literal("No script named '" + scriptName + "' found."));
+        }
         return 1;
     }
 
@@ -203,8 +293,8 @@ public class LoomCommand {
         } catch (IOException | IllegalArgumentException e) {
             error("Failed to create script '{}': {}", scriptName, e.getMessage());
             context.getSource().sendFailure(Component.literal("Failed to create script '" + scriptName + "': " + e.getMessage())
-        );
-    }
+            );
+        }
         return 1;
     }
 
@@ -220,6 +310,8 @@ public class LoomCommand {
                 {"new <name>", "Creates a new script file"},
                 {"remove <name>", "Deletes a script"},
                 {"rename <name> <new name>", "Renames a script"},
+                {"forceremove <name>", "Deletes a script immediately, skipping confirmation"},
+                {"forcerename <name> <new name>", "Renames a script immediately, skipping confirmation"},
                 {"enable <name>", "Enables a disabled script"},
                 {"disable <name>", "Disables an active script"},
                 {"confirm", "Confirms a pending destructive action"}
